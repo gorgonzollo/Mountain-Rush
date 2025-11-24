@@ -2,17 +2,21 @@ using UnityEngine;
 using UnityEngine.UI;
 using System;
 using UnityEngine.InputSystem;
+using LogitechG29.Sample.Input;
 
 [RequireComponent(typeof(Rigidbody))]
 public class MyCarController : MonoBehaviour
 {
-    private InputController _controls;
+    [Header("Logitech Plugin Setup")]
+    [SerializeField] private InputControllerReader _inputReader;
 
-    public int CurrentGear => currentGear;
-    public float CurrentSpeedKmh => currentSpeedKmh;
-    public float CurrentRPM => engineRPM;
-    public float ThrottleInput => lastGasInput;
+    private Rigidbody rb;
+
+    public float CurrentSpeedKmh { get; private set; }
+    public float CurrentRPM { get; private set; }
     public Vector3 LocalGForce { get; private set; }
+    public float idleRPM = 900f;
+    public float redlineRPM = 6000f;
 
     public event Action OnGearShiftUp;
     public event Action OnGearShiftDown;
@@ -20,404 +24,312 @@ public class MyCarController : MonoBehaviour
     public event Action OnRevLimiterHit;
     public event Action<bool> OnTractionLoss;
 
-    private Vector3 _lastVelocity;
-
-    public enum DriveType { FWD, RWD, AWD }
-    public WheelCollider[] wheels = new WheelCollider[4];
-    public Transform[] wheelVisuals = new Transform[4];
-    public DriveType driveType = DriveType.RWD;
-    public float maxMotorTorque = 3000f;
-    public float maxSteerAngle = 28f;
-    public float steerSmooth = 8f;
-    public float maxBrakeTorque = 3500f;
-    public float handbrakeTorque = 4500f;
-    public bool useSpeedLimiter = true;
-    public float maxSpeedKmh = 120f;
-    public float antiRollStiffness = 6000f;
-    public float downforceCoeff = 30f;
-    public Vector3 centerOfMassOffset = new Vector3(0f, -0.35f, 0f);
-
+    public WheelCollider[] wheels;
+    public Transform[] wheelVisuals;
     public Transform steeringWheel;
-    public float steeringWheelMaxAngle = 450f;
-    public float steeringWheelSmooth = 12f;
-    public bool steeringWheelInvert = false;
-
+    public Text gearText;
+    
+    [Header("Speedometer")]
     public Transform speedometerNeedle;
     public float speedometerMinAngle = -120f;
     public float speedometerMaxAngle = 120f;
-    public float speedometerGaugeMaxKmh = 240f;
-    public float speedometerSmooth = 10f;
-    public bool speedometerInvert = false;
+    public float speedometerMaxKmh = 240f;
+    public bool invertSpeedometer = false;
 
-    public float[] forwardGearMaxSpeedsKmh;
-    public float[] forwardGearTorqueMul;
-    public float reverseMaxSpeedKmh = 25f;
-    public int startGear = 1;
-    public Text gearText;
-
+    [Header("Audio Settings")]
     public AudioSource engineSource;
     public AudioClip engineClip;
-    public float idleRPM = 900f;
-    public float redlineRPM = 6000f;
-    public float throttleRPMBoost = 800f;
-    public float engineResponse = 10f;
-    public float enginePitchAtIdle = 0.8f;
-    public float enginePitchAtRedline = 2.0f;
-    public float engineVolumeIdle = 0.2f;
-    public float engineVolumeFull = 0.85f;
+    public float minPitch = 0.7f;
+    public float maxPitch = 2.4f;
+    [Range(0, 1)] public float spatialBlend = 0.2f;
 
-    const float Ms2Kmh = 3.6f;
-    const float kDownshiftSafetyFactor = 1.05f;
-    const float kShiftSnapStrength = 0.85f;
-    const float kUpshiftDipRPM = 400f;
-    const float kDownshiftBlipRPM = 600f;
-    const float kShiftFXTime = 0.12f;
+    [Header("Car Physics")]
+    public float maxMotorTorque = 3000f;
+    public float maxSteerAngle = 30f;
+    public float maxBrakeTorque = 4000f;
+    public float[] gearSpeeds = { 40, 80, 120, 160, 200, 240 };
 
-    Rigidbody rb;
-    float steerAngle;
-    float currentSpeedKmh;
+    private int currentGear = 1; 
+    private Vector3 _lastVelocity;
     
-    int currentGear = 1;
-    float engineRPM;
-    float lastGasInput;
-    float lastBrakeInput;
-    float shiftFxTimer;
-    float shiftFxAddRPM;
+    [Header("DEBUG INPUT")]
+    [SerializeField] private float _wheelSteer = 0f;
+    [SerializeField] private float _wheelGas = 0f;
+    [SerializeField] private float _wheelBrake = 0f;
 
-    bool queuedGearUp, queuedGearDown;
-    int queuedDirectGear;
-
-    Quaternion steeringWheelInitialLocalRot;
-    float steeringWheelCurrentAngle;
-    Quaternion speedometerInitialLocalRot;
-    float speedometerCurrentAngle;
-
-    float _debugRawSteer, _debugRawGas, _debugRawBrake;
+    private float _finalSteer;
+    private float _finalGas;
+    private float _finalBrake;
+    
+    private bool _queuedUp, _queuedDown;
+    private Quaternion _initialNeedleRot;
 
     void Awake()
     {
-        _controls = new InputController();
         rb = GetComponent<Rigidbody>();
-        rb.mass = Mathf.Max(rb.mass, 1200f);
-        rb.centerOfMass += centerOfMassOffset;
-        rb.interpolation = RigidbodyInterpolation.Interpolate;
-        rb.linearDamping = 0.02f; 
-        rb.angularDamping = 0.5f;
+        rb.centerOfMass = new Vector3(0, -0.5f, 0);
+        CurrentRPM = idleRPM;
 
-        if (steeringWheel) steeringWheelInitialLocalRot = steeringWheel.localRotation;
-        if (speedometerNeedle) speedometerInitialLocalRot = speedometerNeedle.localRotation;
-
-        EnsureGearArrays();
-        currentGear = Mathf.Clamp(startGear, -1, forwardGearMaxSpeedsKmh.Length);
-        engineRPM = Mathf.Max(idleRPM, 900f);
-        SetupEngineAudio();
+        if (speedometerNeedle) 
+            _initialNeedleRot = speedometerNeedle.localRotation;
     }
 
-    void OnEnable()
-    {
-        _controls.Enable();
-        if (engineSource && engineClip && !engineSource.isPlaying) engineSource.Play();
-        if(rb) _lastVelocity = rb.linearVelocity;
+    void OnEnable() 
+    { 
+        if (_inputReader != null)
+        {
+            _inputReader.SteeringCallback += (v) => _wheelSteer = v;
+            _inputReader.ThrottleCallback += (v) => _wheelGas = v;
+            _inputReader.BrakeCallback += (v) => _wheelBrake = v;
+
+            _inputReader.OnRightShiftCallback += HandlePaddleUp;
+            _inputReader.OnLeftShiftCallback += HandlePaddleDown;
+            
+            _inputReader.Shifter1Callback += (v) => HandleHShifter(1, v);
+            _inputReader.Shifter2Callback += (v) => HandleHShifter(2, v);
+            _inputReader.Shifter3Callback += (v) => HandleHShifter(3, v);
+            _inputReader.Shifter4Callback += (v) => HandleHShifter(4, v);
+            _inputReader.Shifter5Callback += (v) => HandleHShifter(5, v);
+            _inputReader.Shifter6Callback += (v) => HandleHShifter(6, v);
+            _inputReader.Shifter7Callback += (v) => HandleHShifter(-1, v);
+
+            _inputReader.OnNorthButtonCallback += HandleResetCarInput;
+        }
     }
 
-    void OnDisable()
+    void OnDisable() 
+    { 
+        if (_inputReader != null)
+        {
+             _inputReader.OnRightShiftCallback -= HandlePaddleUp;
+             _inputReader.OnLeftShiftCallback -= HandlePaddleDown;
+             _inputReader.OnNorthButtonCallback -= HandleResetCarInput;
+        }
+    }
+
+    private void HandlePaddleUp(bool pressed) { if (pressed) _queuedUp = true; }
+    private void HandlePaddleDown(bool pressed) { if (pressed) _queuedDown = true; }
+    private void HandleResetCarInput(bool pressed) { if (pressed) ResetCar(); }
+
+    private void HandleHShifter(int gear, bool active)
     {
-        _controls.Disable();
-        if (engineSource) engineSource.Stop();
+        if (active) {
+            currentGear = gear;
+            if (gear > 0) OnGearShiftUp?.Invoke();
+            if (gear < 0) OnGearShiftDown?.Invoke();
+        }
+        else if (currentGear == gear) {
+            currentGear = 0; 
+        }
+    }
+
+    void Start()
+    {
+        if (engineSource != null)
+        {
+            if (engineClip != null) engineSource.clip = engineClip;
+            engineSource.loop = true;
+            engineSource.spatialBlend = spatialBlend; 
+            engineSource.volume = 0.5f; 
+            if(!engineSource.isPlaying) engineSource.Play();
+        }
     }
 
     void Update()
     {
-        PollInputControlsButtons();
-        UpdateSteeringWheelVisual();
-        UpdateSpeedometerNeedle();
-        UpdateEngineAudio();
-        UpdateGearUI();
+        if (Keyboard.current != null)
+        {
+            if (Keyboard.current.eKey.wasPressedThisFrame) _queuedUp = true;
+            if (Keyboard.current.fKey.wasPressedThisFrame) _queuedDown = true;
+            if (Keyboard.current.rKey.wasPressedThisFrame) ResetCar();
+        }
+
+        UpdateVisuals();
+        UpdateSpeedometer();
+        UpdateAudio();
     }
 
     void FixedUpdate()
     {
-        ReadInputControlsAxes(out float steerInput, out float gasInput, out float brakeInput);
+        _finalSteer = _wheelSteer;
+        _finalGas = _wheelGas;
+        _finalBrake = _wheelBrake;
 
-        bool gearUpPressed = Consume(ref queuedGearUp);
-        bool gearDownPressed = Consume(ref queuedGearDown);
-        int directGear = queuedDirectGear; queuedDirectGear = 0;
-
-        lastGasInput = gasInput;
-        lastBrakeInput = brakeInput;
-        currentSpeedKmh = rb.linearVelocity.magnitude * Ms2Kmh;
-
-        int oldGear = currentGear;
-        bool gearChanged = false;
-
-        if (directGear > 0) gearChanged = TrySelectForwardGear(directGear);
-        if (!gearChanged && TryHandleManualGearShift(gearUpPressed, gearDownPressed)) gearChanged = true;
-        
-        if (gearChanged) { OnGearChanged(oldGear, currentGear); UpdateGearUI(); }
-
-        float targetSteer = maxSteerAngle * steerInput;
-        steerAngle = Mathf.Lerp(steerAngle, targetSteer, steerSmooth * Time.fixedDeltaTime);
-        if (wheels.Length > 0) wheels[0].steerAngle = steerAngle;
-        if (wheels.Length > 1) wheels[1].steerAngle = steerAngle;
-
-        float motor = 0f;
-        float brake = Mathf.Clamp01(brakeInput) * maxBrakeTorque;
-
-        GetGearProperties(out float gearSign, out float gearTopKmh, out float torqueMul, out float launchFloor);
-        float capKmh = (useSpeedLimiter && maxSpeedKmh > 1f) ? Mathf.Min(gearTopKmh, maxSpeedKmh) : gearTopKmh;
-        float torqueLimiter = 1f;
-        if (float.IsFinite(capKmh))
-            torqueLimiter = 1f - Mathf.Clamp01(currentSpeedKmh / Mathf.Max(1f, capKmh));
-
-        float forwardVel = Vector3.Dot(rb.linearVelocity, transform.forward);
-        bool movingOpposite = (currentGear > 0 && forwardVel < -0.5f) || (currentGear < 0 && forwardVel > 0.5f);
-
-        if (gasInput > 0.01f && Mathf.Abs(gearSign) > 0.0001f)
+        if (Keyboard.current != null)
         {
-            if (movingOpposite) brake = Mathf.Max(brake, maxBrakeTorque);
+            if (Keyboard.current.wKey.isPressed) _finalGas = 1f;
+            if (Keyboard.current.sKey.isPressed) _finalBrake = 1f;
+            
+            if (Keyboard.current.aKey.isPressed) _finalSteer = -1f;
+            else if (Keyboard.current.dKey.isPressed) _finalSteer = 1f;
+        }
+
+        _finalGas = Mathf.Clamp01(_finalGas);
+        _finalBrake = Mathf.Clamp01(_finalBrake);
+        _finalSteer = Mathf.Clamp(_finalSteer, -1f, 1f);
+
+        CurrentSpeedKmh = rb.linearVelocity.magnitude * 3.6f;
+        
+        HandleSequentialGears();
+        HandleEngine();
+        HandleSteering();
+        CalculatePhysicsTelemetry();
+        CheckTraction();
+    }
+
+    void ResetCar()
+    {
+        transform.position += Vector3.up * 2.0f;
+        transform.rotation = Quaternion.Euler(0, transform.eulerAngles.y, 0);
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+    }
+
+    void CalculatePhysicsTelemetry()
+    {
+        Vector3 acceleration = (rb.linearVelocity - _lastVelocity) / Time.fixedDeltaTime;
+        _lastVelocity = rb.linearVelocity;
+        Vector3 localAcc = transform.InverseTransformDirection(acceleration);
+        Vector3 rawG = localAcc / 9.81f;
+        LocalGForce = Vector3.Lerp(LocalGForce, rawG, Time.fixedDeltaTime * 5f);
+    }
+
+    void HandleSequentialGears()
+    {
+        if (_queuedUp)
+        {
+            if (currentGear < gearSpeeds.Length) { currentGear++; OnGearShiftUp?.Invoke(); }
+            _queuedUp = false;
+        }
+
+        if (_queuedDown)
+        {
+            bool canShift = true;
+            if (currentGear == 0 && CurrentSpeedKmh > 5f) canShift = false; 
+            if (currentGear > 1 && CurrentSpeedKmh > gearSpeeds[currentGear - 2] * 1.2f) { canShift = false; OnRevLimiterHit?.Invoke(); }
+
+            if (canShift && currentGear > -1) { currentGear--; OnGearShiftDown?.Invoke(); }
+            _queuedDown = false;
+        }
+    }
+
+    void HandleEngine()
+    {
+        float torque = 0;
+        float currentMaxSpeed = 0;
+
+        if (currentGear > 0)
+        {
+            int index = Mathf.Clamp(currentGear - 1, 0, gearSpeeds.Length - 1);
+            currentMaxSpeed = gearSpeeds[index];
+        }
+        else if (currentGear == -1)
+        {
+            currentMaxSpeed = 35f; 
+        }
+        
+        if (currentGear == 0)
+        {
+            torque = 0;
+        }
+        else
+        {
+            if (CurrentSpeedKmh < currentMaxSpeed)
+            {
+                float direction = (currentGear > 0) ? 1f : -1f;
+                torque = maxMotorTorque * _finalGas * direction;
+            }
             else
             {
-                float speed01Gear = (float.IsFinite(gearTopKmh) && gearTopKmh > 0.1f) ? Mathf.Clamp01(currentSpeedKmh / gearTopKmh) : 0f;
-                float rpmFactor = Mathf.SmoothStep(0f, 1f, speed01Gear);
-                float engineFactor = Mathf.Max(launchFloor, rpmFactor);
-                motor = gearSign * maxMotorTorque * gasInput * torqueMul * engineFactor * torqueLimiter;
+                OnRevLimiterHit?.Invoke();
             }
         }
 
-        ApplyDrive(motor, brake);
-
-        rb.AddForce(-transform.up * (downforceCoeff * rb.linearVelocity.magnitude));
-        
-        if (wheels.Length >= 4) {
-            ApplyAntiRoll(wheels[0], wheels[1]);
-            ApplyAntiRoll(wheels[2], wheels[3]);
-            CheckTractionLoss();
-        }
-
-        UpdatePlatformData();
-        UpdateWheelVisuals();
-    }
-
-    void ReadInputControlsAxes(out float steer, out float gas, out float brake)
-    {
-        steer = _controls.Steeringwheel.Steering_Steering.ReadValue<float>();
-        float rawGas = _controls.Pedals.Throttle.ReadValue<float>();
-        gas = Mathf.Clamp01(rawGas);
-        float rawBrake = _controls.Pedals.Brake.ReadValue<float>();
-        brake = Mathf.Clamp01(rawBrake);
-
-        _debugRawSteer = steer;
-        _debugRawGas = gas;
-        _debugRawBrake = brake;
-
-        if (Mathf.Abs(steer) < 0.05f && gas < 0.05f && brake < 0.05f && Keyboard.current != null)
+        foreach (var w in wheels)
         {
-            if (Keyboard.current.aKey.isPressed || Keyboard.current.leftArrowKey.isPressed) steer = -1;
-            if (Keyboard.current.dKey.isPressed || Keyboard.current.rightArrowKey.isPressed) steer = 1;
-            
-            if (Keyboard.current.wKey.isPressed || Keyboard.current.upArrowKey.isPressed) gas = 1;
-            if (Keyboard.current.sKey.isPressed || Keyboard.current.downArrowKey.isPressed) brake = 1;
+            w.motorTorque = torque;
+            w.brakeTorque = _finalBrake * maxBrakeTorque;
         }
     }
 
-    void PollInputControlsButtons()
+    void HandleSteering()
     {
-        if (_controls.Buttons.RightBumper.triggered) queuedGearUp = true;
-        if (_controls.Buttons.LeftBumper.triggered) queuedGearDown = true;
-
-        if (_controls.Transmission.Shifter1.triggered) queuedDirectGear = 1;
-        if (_controls.Transmission.Shifter2.triggered) queuedDirectGear = 2;
-        if (_controls.Transmission.Shifter3.triggered) queuedDirectGear = 3;
-        if (_controls.Transmission.Shifter4.triggered) queuedDirectGear = 4;
-        if (_controls.Transmission.Shifter5.triggered) queuedDirectGear = 5;
-        if (_controls.Transmission.Shifter6.triggered) queuedDirectGear = 6;
-        if (_controls.Transmission.Shifter7.triggered) queuedDirectGear = -1;
-
-        if (Keyboard.current != null) {
-            if (Keyboard.current.eKey.wasPressedThisFrame) queuedGearUp = true;
-            if (Keyboard.current.fKey.wasPressedThisFrame) queuedGearDown = true;
+        float angle = _finalSteer * maxSteerAngle;
+        if(wheels.Length > 1) 
+        {
+            wheels[0].steerAngle = angle;
+            wheels[1].steerAngle = angle;
         }
     }
 
-    void UpdatePlatformData()
+    void CheckTraction()
     {
-        Vector3 currentVel = rb.linearVelocity;
-        Vector3 acceleration = (currentVel - _lastVelocity) / Time.fixedDeltaTime;
-        Vector3 rawG = transform.InverseTransformDirection(acceleration) / 9.81f;
-        LocalGForce = Vector3.Lerp(LocalGForce, rawG, Time.fixedDeltaTime * 5f);
-        _lastVelocity = currentVel;
-    }
-
-    void CheckTractionLoss()
-    {
-        bool drifting = false;
+        bool slip = false;
         foreach(var w in wheels) {
-            if(w.GetGroundHit(out WheelHit h) && Mathf.Abs(h.sidewaysSlip) > 0.6f) { drifting = true; break; }
+            if(w.GetGroundHit(out WheelHit hit)) 
+                if(Mathf.Abs(hit.sidewaysSlip) > 0.5f) slip = true;
         }
-        OnTractionLoss?.Invoke(drifting);
+        OnTractionLoss?.Invoke(slip);
     }
     
-    void OnCollisionEnter(Collision c) {
-        if(c.relativeVelocity.magnitude > 2f) OnCollisionForce?.Invoke(Mathf.Clamp01(c.relativeVelocity.magnitude/20f));
+    void OnCollisionEnter(Collision c)
+    {
+        if (c.relativeVelocity.magnitude > 2f)
+            OnCollisionForce?.Invoke(c.relativeVelocity.magnitude);
     }
 
-    static bool Consume(ref bool flag) { bool f = flag; flag = false; return f; }
-
-    bool TrySelectForwardGear(int desired)
+    void UpdateVisuals()
     {
-        desired = Mathf.Clamp(desired, 1, forwardGearMaxSpeedsKmh.Length);
-        if (currentGear != desired) { currentGear = desired; return true; }
-        return false;
-    }
-
-    bool TryHandleManualGearShift(bool up, bool down)
-    {
-        int target = currentGear;
-        if (up) target = Mathf.Min(currentGear + 1, forwardGearMaxSpeedsKmh.Length);
-        if (down) target = Mathf.Max(currentGear - 1, -1);
-        if (target == currentGear) return false;
-        currentGear = target;
-        return true;
-    }
-
-    void OnGearChanged(int oldGear, int newGear)
-    {
-        if(newGear > oldGear) OnGearShiftUp?.Invoke();
-        else if(newGear < oldGear) OnGearShiftDown?.Invoke();
-
-        if (engineSource && engineClip) {
-            float newBaseRPM = EstimateRPMForSpeedAndGear(newGear);
-            engineRPM = Mathf.Lerp(engineRPM, newBaseRPM, Mathf.Clamp01(kShiftSnapStrength));
-            if (newGear > oldGear && oldGear >= 1) { shiftFxAddRPM = -Mathf.Abs(kUpshiftDipRPM); shiftFxTimer = kShiftFXTime; }
-            else if (newGear < oldGear && newGear >= 1) { shiftFxAddRPM = Mathf.Abs(kDownshiftBlipRPM); shiftFxTimer = kShiftFXTime; }
-        }
-    }
-
-    void GetGearProperties(out float sign, out float topKmh, out float torqueMul, out float launchFloor)
-    {
-        sign = 0f; topKmh = float.PositiveInfinity; torqueMul = 0f; launchFloor = 0.85f;
-        if (currentGear > 0) {
-            int idx = Mathf.Clamp(currentGear - 1, 0, forwardGearMaxSpeedsKmh.Length - 1);
-            topKmh = forwardGearMaxSpeedsKmh[idx];
-            torqueMul = (forwardGearTorqueMul != null && forwardGearTorqueMul.Length > idx) ? forwardGearTorqueMul[idx] : 1f;
-            sign = 1f;
-        } else if (currentGear < 0) {
-            sign = -1f; topKmh = reverseMaxSpeedKmh; torqueMul = 1f;
-        }
-    }
-
-    void ApplyDrive(float motor, float brake)
-    {
-        for (int i = 0; i < wheels.Length; i++) { if (wheels[i]) { wheels[i].motorTorque = 0f; wheels[i].brakeTorque = 0f; } }
-        void DW(int i) { if (i >= 0 && i < wheels.Length && wheels[i]) wheels[i].motorTorque = motor; }
-        switch (driveType) { case DriveType.FWD: DW(0); DW(1); break; case DriveType.RWD: DW(2); DW(3); break; case DriveType.AWD: DW(0); DW(1); DW(2); DW(3); break; }
-        for (int i = 0; i < wheels.Length; i++) if (wheels[i]) wheels[i].brakeTorque = Mathf.Max(wheels[i].brakeTorque, brake);
-    }
-
-    void ApplyAntiRoll(WheelCollider l, WheelCollider r)
-    {
-        if (!l || !r) return;
-        float tL = 1f, tR = 1f;
-        if (l.GetGroundHit(out WheelHit hL)) tL = (-l.transform.InverseTransformPoint(hL.point).y - l.radius) / l.suspensionDistance;
-        if (r.GetGroundHit(out WheelHit hR)) tR = (-r.transform.InverseTransformPoint(hR.point).y - r.radius) / r.suspensionDistance;
-        float f = (tL - tR) * antiRollStiffness;
-        if (hL.collider) rb.AddForceAtPosition(l.transform.up * -f, l.transform.position);
-        if (hR.collider) rb.AddForceAtPosition(r.transform.up * f, r.transform.position);
-    }
-
-    void UpdateEngineAudio()
-    {
-        if (!engineSource || !engineClip) return;
-        if (engineSource.clip != engineClip) engineSource.clip = engineClip;
-        if (!engineSource.isPlaying && isActiveAndEnabled) engineSource.Play();
-
-        float targetRPM = EstimateRPMForSpeedAndGear(currentGear);
-        if (shiftFxTimer > 0f) { targetRPM += shiftFxAddRPM * (shiftFxTimer / kShiftFXTime); shiftFxTimer -= Time.deltaTime; }
-        
-        targetRPM = Mathf.Clamp(targetRPM, idleRPM, redlineRPM);
-        engineRPM = Mathf.Lerp(engineRPM, targetRPM, engineResponse * Time.deltaTime);
-        if (engineRPM >= redlineRPM * 0.95f) OnRevLimiterHit?.Invoke();
-
-        float rpm01 = Mathf.InverseLerp(idleRPM, redlineRPM, engineRPM);
-        engineSource.pitch = Mathf.Clamp(Mathf.Lerp(enginePitchAtIdle, enginePitchAtRedline, rpm01), 0.1f, 3f);
-        engineSource.volume = Mathf.Lerp(engineVolumeIdle, engineVolumeFull, Mathf.Clamp01(0.7f * Mathf.Clamp01(lastGasInput) + 0.3f * rpm01));
-    }
-
-    float EstimateRPMForSpeedAndGear(int gear)
-    {
-        if (gear == 0) return Mathf.Lerp(idleRPM, redlineRPM, Mathf.Pow(Mathf.Clamp01(lastGasInput), 1.4f));
-        float gearTop = Mathf.Max(1f, (gear > 0) ? forwardGearMaxSpeedsKmh[Mathf.Clamp(gear - 1, 0, forwardGearMaxSpeedsKmh.Length - 1)] : reverseMaxSpeedKmh);
-        float speed01 = Mathf.Clamp01(currentSpeedKmh / gearTop);
-        return Mathf.Lerp(idleRPM, redlineRPM, Mathf.SmoothStep(0f, 1f, speed01)) + (throttleRPMBoost * Mathf.Clamp01(lastGasInput) * (1f - speed01));
-    }
-
-    void SetupEngineAudio()
-    {
-        if (!engineSource) engineSource = GetComponent<AudioSource>();
-        if (!engineSource) engineSource = gameObject.AddComponent<AudioSource>();
-        engineSource.loop = true;
-        engineSource.spatialBlend = 0.75f;
-    }
-
-    void UpdateWheelVisuals()
-    {
-        for (int i = 0; i < Mathf.Min(wheels.Length, wheelVisuals.Length); i++)
+        if (gearText) 
         {
-            if (wheels[i] && wheelVisuals[i]) {
+            if (currentGear == -1) gearText.text = "R";
+            else if (currentGear == 0) gearText.text = "N";
+            else gearText.text = currentGear.ToString();
+        }
+
+        if (steeringWheel) 
+            steeringWheel.localRotation = Quaternion.Euler(0, 0, -_finalSteer * 450f);
+        
+        for(int i=0; i<wheels.Length; i++) {
+            if(i < wheelVisuals.Length && wheelVisuals[i] != null) {
                 wheels[i].GetWorldPose(out Vector3 p, out Quaternion r);
-                wheelVisuals[i].position = p; wheelVisuals[i].rotation = r;
+                wheelVisuals[i].position = p; 
+                wheelVisuals[i].rotation = r;
             }
         }
     }
 
-    void UpdateSteeringWheelVisual()
-    {
-        if (!steeringWheel) return;
-        float target = (steerAngle / maxSteerAngle) * steeringWheelMaxAngle * (steeringWheelInvert ? -1f : 1f);
-        steeringWheelCurrentAngle = Mathf.Lerp(steeringWheelCurrentAngle, target, steeringWheelSmooth * Time.deltaTime);
-        steeringWheel.localRotation = steeringWheelInitialLocalRot * Quaternion.AngleAxis(steeringWheelCurrentAngle, Vector3.forward);
-    }
-
-    void UpdateSpeedometerNeedle()
+    void UpdateSpeedometer()
     {
         if (!speedometerNeedle) return;
-        float t = Mathf.InverseLerp(0f, speedometerGaugeMaxKmh, currentSpeedKmh);
-        float target = Mathf.Lerp(speedometerMinAngle, speedometerMaxAngle, t) * (speedometerInvert ? -1f : 1f);
-        speedometerCurrentAngle = Mathf.Lerp(speedometerCurrentAngle, target, speedometerSmooth * Time.deltaTime);
-        speedometerNeedle.localRotation = speedometerInitialLocalRot * Quaternion.AngleAxis(speedometerCurrentAngle, Vector3.forward);
+        float speedFactor = Mathf.Clamp01(CurrentSpeedKmh / speedometerMaxKmh);
+        float currentAngle = Mathf.Lerp(speedometerMinAngle, speedometerMaxAngle, speedFactor);
+        Vector3 axis = invertSpeedometer ? -Vector3.forward : Vector3.forward;
+        speedometerNeedle.localRotation = _initialNeedleRot * Quaternion.AngleAxis(currentAngle, axis);
     }
 
-    void UpdateGearUI() { if (gearText) gearText.text = (currentGear < 0) ? "R" : (currentGear == 0 ? "N" : currentGear.ToString()); }
-
-    void EnsureGearArrays() { if (forwardGearMaxSpeedsKmh == null || forwardGearMaxSpeedsKmh.Length == 0) { forwardGearMaxSpeedsKmh = new float[] { 20f, 70f, 100f, 120f }; forwardGearTorqueMul = new float[] { 2.2f, 1.6f, 1.2f, 1.0f }; } }
-
-    void OnGUI()
+    void UpdateAudio()
     {
-        GUI.skin.label.fontSize = 20;
-        GUI.color = Color.cyan;
-        
-        GUILayout.BeginArea(new Rect(10, 10, 600, 600));
-        GUILayout.Label("<b>[2DOF SIMULATOR DEBUG]</b>");
-        
-        GUILayout.Space(10);
-        GUILayout.Label($"<b>Steer (Raw/Final):</b> {_debugRawSteer:F2} / {(steerAngle/maxSteerAngle):F2}");
-        GUILayout.Label($"<b>Gas (Raw/Final):</b> {_debugRawGas:F2} / {lastGasInput:F2}");
-        GUILayout.Label($"<b>Brake (Raw/Final):</b> {_debugRawBrake:F2} / {lastBrakeInput:F2}");
-        
-        GUILayout.Space(10);
-        GUILayout.Label($"<b>Speed:</b> {currentSpeedKmh:F0} km/h");
-        GUILayout.Label($"<b>Gear:</b> {currentGear}");
-        GUILayout.Label($"<b>RPM:</b> {engineRPM:F0}");
-        
-        GUILayout.Space(10);
-        GUILayout.Label($"<b>Local G-Force:</b> {LocalGForce}");
-        
-        GUILayout.Space(10);
-        if (_debugRawSteer == 0 && _debugRawGas == 0)
-            GUILayout.Label("<color=yellow>USING KEYBOARD FALLBACK (WASD)</color>");
-        else
-            GUILayout.Label("<color=green>WHEEL DETECTED</color>");
+        if (!engineSource) return;
+        if (!engineSource.isPlaying && isActiveAndEnabled) engineSource.Play();
 
-        GUILayout.EndArea();
+        engineSource.spatialBlend = spatialBlend;
+
+        float targetRPM = idleRPM;
+        if (currentGear == 0)
+        {
+            targetRPM = Mathf.Lerp(idleRPM, redlineRPM, _finalGas);
+        }
+        else
+        {
+            float gearMaxSpeed = (currentGear == -1) ? 35f : gearSpeeds[Mathf.Clamp(currentGear - 1, 0, gearSpeeds.Length - 1)];
+            float speedRatio = Mathf.Clamp01(CurrentSpeedKmh / gearMaxSpeed);
+            targetRPM = Mathf.Lerp(idleRPM, redlineRPM, speedRatio);
+            if (_finalGas > 0) targetRPM += 500f * _finalGas; 
+        }
+
+        CurrentRPM = Mathf.Lerp(CurrentRPM, targetRPM, Time.deltaTime * 5f);
+        engineSource.pitch = Mathf.Lerp(minPitch, maxPitch, Mathf.InverseLerp(idleRPM, redlineRPM, CurrentRPM));
+        engineSource.volume = Mathf.Lerp(0.5f, 1.0f, Mathf.InverseLerp(idleRPM, redlineRPM, CurrentRPM) * 0.7f + _finalGas * 0.3f);
     }
 }

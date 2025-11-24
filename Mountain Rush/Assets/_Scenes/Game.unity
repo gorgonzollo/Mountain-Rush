@@ -766,6 +766,57 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 548415462}
   m_CullTransparentMesh: 1
+--- !u!1 &604287720
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 604287722}
+  - component: {fileID: 604287721}
+  m_Layer: 0
+  m_Name: GameObject
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &604287721
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 604287720}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b10e95f432765440d9dbb23abe5fb8b5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp-firstpass::LogitechEmulator
+  targetReader: {fileID: 11400000, guid: 8268bb9eff5a1954492cd4817fb37528, type: 2}
+  FakeSteering: 0
+  FakeThrottle: 0
+  FakeBrake: 0
+  PressRightPaddle: 0
+  PressLeftPaddle: 0
+  PressReverse: 0
+--- !u!4 &604287722
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 604287720}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 9.3622, y: -10.4903, z: 8.91616}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &619254829
 GameObject:
   m_ObjectHideFlags: 0
@@ -2449,6 +2500,10 @@ PrefabInstance:
       value: 
       objectReference: {fileID: 43548180}
     - target: {fileID: 8329885144281912724, guid: ff16d155d96b6494ca20eed07446c23b, type: 3}
+      propertyPath: invertSpeedometer
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 8329885144281912724, guid: ff16d155d96b6494ca20eed07446c23b, type: 3}
       propertyPath: speedometerNeedle
       value: 
       objectReference: {fileID: 3307364088688502458}
@@ -3040,3 +3095,4 @@ SceneRoots:
   - {fileID: 753875410}
   - {fileID: 343618007}
   - {fileID: 5485871260734579153}
+  - {fileID: 604287722}

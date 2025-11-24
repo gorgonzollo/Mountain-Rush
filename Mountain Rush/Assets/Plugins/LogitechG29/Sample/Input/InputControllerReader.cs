@@ -421,5 +421,22 @@ namespace LogitechG29.Sample.Input
         }
 
         #endregion
+
+        // --- ТЕСТОВЫЕ МЕТОДЫ (БЭКДОР) ---
+        public void TEST_SimulateInput(float steer, float gas, float brake)
+        {
+            Steering = steer;
+            SteeringCallback?.Invoke(Steering);
+
+            Throttle = gas;
+            ThrottleCallback?.Invoke(Throttle);
+
+            Brake = brake;
+            BrakeCallback?.Invoke(Brake);
+        }
+        
+        public void TEST_SimulateGearUp() => OnRightShiftCallback?.Invoke(true);
+        public void TEST_SimulateGearDown() => OnLeftShiftCallback?.Invoke(true);
+        // --------------------------------
     }
 }
