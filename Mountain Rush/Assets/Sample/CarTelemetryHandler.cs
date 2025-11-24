@@ -1,72 +1,59 @@
-using System;
 using System.Collections;
-using _2DOF;
 using UnityEngine;
+using _2DOF;
 
 public class CarTelemetryHandler : MonoBehaviour
 {
     private const float WAIT_TIME = SendingData.WAIT_TIME / 1000f;
 
     [SerializeField] private Transform vehicleTransform;
-    [SerializeField] private Rigidbody rigidbody;
+    [SerializeField] private Rigidbody rb;
 
-    private ObjectTelemetryData _telemetryDataData;
-    private SendingData _sendingData;
+    private ObjectTelemetryData _telemetry;
+    private SendingData _sender;
 
-    private void Awake()
+    void Awake()
     {
-        _sendingData = new SendingData();
-        _telemetryDataData = _sendingData.ObjectTelemetryData;
+        _sender = new SendingData();
+        _telemetry = _sender.ObjectTelemetryData;
     }
 
-    public void OnEnable()
+    void OnEnable()
     {
-        StartCoroutine(TelemetryHandler());
-        _sendingData.SendingStart();
+        StartCoroutine(nameof(TelemetryLoop));
+        _sender.SendingStart();
     }
 
-    public void OnDisable()
+    void OnDisable()
     {
-        StopCoroutine(TelemetryHandler());
-        _sendingData.SendingStop();
+        StopCoroutine(nameof(TelemetryLoop));
+        _sender.SendingStop();
     }
 
-    private IEnumerator TelemetryHandler()
+    IEnumerator TelemetryLoop()
     {
+        var wait = new WaitForSeconds(WAIT_TIME);
         while (true)
         {
-            if (_telemetryDataData == null)
-            {
-                yield return new WaitForSeconds(WAIT_TIME * 10f);
-                continue;
-            }
-
+            if (_telemetry == null) { yield return wait; continue; }
             UpdateAngles();
             UpdateVelocity();
-
-            Debug.Log(_telemetryDataData.ToString());
-
-            yield return new WaitForSeconds(WAIT_TIME);
+            yield return wait;
         }
     }
 
-    private void UpdateVelocity()
+    void UpdateVelocity()
     {
-        _telemetryDataData.Velocity = rigidbody.linearVelocity;
+        if (rb != null) _telemetry.Velocity = rb.linearVelocity;
     }
 
-    private void UpdateAngles()
+    void UpdateAngles()
     {
-        var euler = vehicleTransform.eulerAngles;
-
-        euler.x = Mathf.Approximately(euler.x, 180) ? 0 : euler.x;
-        euler.z = Mathf.Approximately(euler.z, 180) ? 0 : euler.z;
-        euler.y = Mathf.Approximately(euler.y, 180) ? 0 : euler.y;
-
-        euler.x = euler.x > 180 ? euler.x - 360 : euler.x;
-        euler.z = euler.z > 180 ? euler.z - 360 : euler.z;
-        euler.y = euler.y > 180 ? euler.y - 360 : euler.y;
-
-        _telemetryDataData.Angles = euler;
+        if (vehicleTransform == null) return;
+        Vector3 e = vehicleTransform.rotation.eulerAngles;
+        e.x = e.x > 180f ? e.x - 360f : e.x;
+        e.y = e.y > 180f ? e.y - 360f : e.y;
+        e.z = e.z > 180f ? e.z - 360f : e.z;
+        _telemetry.Angles = e;
     }
 }

@@ -5,22 +5,25 @@ using _2DOF;
 public class PlatformConnectorMMF : MonoBehaviour
 {
     public MyCarController carController;
-    
-    public float pitchGain = 2.0f; 
+    public float pitchGain = 2.0f;
     public float rollGain = 2.5f;
     public float maxAngle = 15.0f;
     public float smoothing = 5.0f;
     public float idleVibration = 0.15f;
     public float rpmVibrationFactor = 0.05f;
+    public bool invertPitch = false;
+    public bool invertRoll = true;
 
     private SendingData _sendingData;
     private ObjectTelemetryData _telemetryData;
     private Rigidbody _carRb;
-    
+
     private float _currentPitch;
     private float _currentRoll;
     private float _targetPitch;
     private float _targetRoll;
+
+    private Coroutine _telemetryRoutine;
 
     void Awake()
     {
@@ -30,74 +33,65 @@ public class PlatformConnectorMMF : MonoBehaviour
 
     void Start()
     {
-        if (carController == null) 
-            carController = GetComponent<MyCarController>();
-        
-        if (carController != null)
-            _carRb = carController.GetComponent<Rigidbody>();
+        if (!carController) carController = GetComponent<MyCarController>();
+        if (carController) _carRb = carController.GetComponent<Rigidbody>();
     }
 
     void OnEnable()
     {
         _sendingData.SendingStart();
-        StartCoroutine(TelemetryHandler());
+        _telemetryRoutine = StartCoroutine(TelemetryHandler());
     }
 
     void OnDisable()
     {
-        StopCoroutine(TelemetryHandler());
+        if (_telemetryRoutine != null) StopCoroutine(_telemetryRoutine);
+        _telemetryRoutine = null;
+        _sendingData.SendingStop();
+    }
+
+    void OnApplicationQuit()
+    {
+        if (_telemetryRoutine != null) StopCoroutine(_telemetryRoutine);
+        _telemetryRoutine = null;
         _sendingData.SendingStop();
     }
 
     void FixedUpdate()
     {
-        CalculateCustomMotionLogic();
-    }
+        if (!carController) return;
 
-    private IEnumerator TelemetryHandler()
-    {
-        float waitTime = SendingData.WAIT_TIME / 1000f; 
+        Vector3 g = carController.LocalGForce;
 
-        while (true)
-        {
-            if (_telemetryData == null)
-            {
-                yield return new WaitForSeconds(waitTime * 10f);
-                continue;
-            }
+        float pSign = invertPitch ? -1f : 1f;
+        float rSign = invertRoll ? -1f : 1f;
 
-            _telemetryData.Angles = new Vector3(_currentPitch, 0, _currentRoll);
+        _targetPitch = Mathf.Clamp(g.z * pitchGain * pSign, -maxAngle, maxAngle);
+        _targetRoll = Mathf.Clamp(g.x * rollGain * rSign, -maxAngle, maxAngle);
 
-            if (_carRb != null)
-            {
-                _telemetryData.Velocity = _carRb.linearVelocity;
-            }
+        float rpmT = Mathf.InverseLerp(carController.idleRPM, carController.redlineRPM, carController.CurrentRPM);
+        float noise = (Mathf.PerlinNoise(Time.time * 25f, 0f) - 0.5f) * (idleVibration + rpmT * rpmVibrationFactor);
 
-            yield return new WaitForSeconds(waitTime);
-        }
-    }
-
-    void CalculateCustomMotionLogic()
-    {
-        if (carController == null) return;
-
-        Vector3 gForce = carController.LocalGForce;
-        
-        _targetPitch = gForce.z * pitchGain; 
-        _targetRoll = -gForce.x * rollGain;
-
-        float rpmPercent = Mathf.InverseLerp(carController.idleRPM, carController.redlineRPM, carController.CurrentRPM);
-        float noise = (Mathf.PerlinNoise(Time.time * 25f, 0f) - 0.5f);
-        float totalVibro = idleVibration + (rpmPercent * rpmVibrationFactor);
-        
-        _targetPitch += noise * totalVibro;
-        _targetRoll += noise * totalVibro;
-
-        _targetPitch = Mathf.Clamp(_targetPitch, -maxAngle, maxAngle);
-        _targetRoll = Mathf.Clamp(_targetRoll, -maxAngle, maxAngle);
+        _targetPitch += noise;
+        _targetRoll += noise;
 
         float dt = Time.fixedDeltaTime;
         _currentPitch = Mathf.Lerp(_currentPitch, _targetPitch, dt * smoothing);
         _currentRoll = Mathf.Lerp(_currentRoll, _targetRoll, dt * smoothing);
+    }
+
+    IEnumerator TelemetryHandler()
+    {
+        float waitTime = SendingData.WAIT_TIME / 1000f;
+        var wait = new WaitForSeconds(waitTime);
+        while (true)
+        {
+            if (_telemetryData != null)
+            {
+                _telemetryData.Angles = new Vector3(_currentPitch, 0f, _currentRoll);
+                _telemetryData.Velocity = _carRb ? _carRb.linearVelocity : Vector3.zero;
+            }
+            yield return wait;
+        }
     }
 }

@@ -154,7 +154,7 @@ public class RaceManager : MonoBehaviour
     {
         _running = false;
         _finished = true;
-        SetCountdown("Finish!");
+        SetCountdown("Финиш!");
         UpdateTimerUI(_elapsed);
     }
 
