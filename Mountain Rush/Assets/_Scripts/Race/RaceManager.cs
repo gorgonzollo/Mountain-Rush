@@ -25,6 +25,8 @@ public class RaceManager : MonoBehaviour
         _rb = playerCar.GetComponent<Rigidbody>();
         if (!_rb) { enabled = false; return; }
 
+        if (playerCar.gearText) playerCar.gearText.gameObject.SetActive(false);
+
         BuildCheckpointList();
         _expectedIndex = 0;
         DeactivateAll();
@@ -94,6 +96,9 @@ public class RaceManager : MonoBehaviour
         _startTime = Time.time;
         _running = true;
         _finished = false;
+
+        if (playerCar.gearText) playerCar.gearText.gameObject.SetActive(true);
+
         FreezeCar(false);
 
         yield return new WaitForSeconds(0.6f);

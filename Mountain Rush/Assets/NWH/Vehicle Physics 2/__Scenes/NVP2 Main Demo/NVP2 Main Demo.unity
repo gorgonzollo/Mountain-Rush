@@ -13375,6 +13375,14 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 2131501052}
     m_Modifications:
+    - target: {fileID: -5659893309928009133, guid: 47a0cc832fb2ee941915a48de5d19dd0, type: 3}
+      propertyPath: m_VolumeTrigger
+      value: 
+      objectReference: {fileID: 186665124}
+    - target: {fileID: -2276312646520712912, guid: 47a0cc832fb2ee941915a48de5d19dd0, type: 3}
+      propertyPath: m_VolumeTrigger
+      value: 
+      objectReference: {fileID: 186665124}
     - target: {fileID: 173417851, guid: 47a0cc832fb2ee941915a48de5d19dd0, type: 3}
       propertyPath: volumeTrigger
       value: 
@@ -43551,6 +43559,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 2131501052}
     m_Modifications:
+    - target: {fileID: -5782793657791932394, guid: b9a717f48a878014eace6ca32ea4f360, type: 3}
+      propertyPath: m_VolumeTrigger
+      value: 
+      objectReference: {fileID: 186665124}
     - target: {fileID: 289161716542159240, guid: b9a717f48a878014eace6ca32ea4f360, type: 3}
       propertyPath: volumeTrigger
       value: 
@@ -43583,6 +43595,10 @@ PrefabInstance:
       propertyPath: m_LocalRotation.z
       value: 0.000000010369969
       objectReference: {fileID: 0}
+    - target: {fileID: 1460490498959137230, guid: b9a717f48a878014eace6ca32ea4f360, type: 3}
+      propertyPath: m_VolumeTrigger
+      value: 
+      objectReference: {fileID: 186665124}
     - target: {fileID: 1649529085236753054, guid: b9a717f48a878014eace6ca32ea4f360, type: 3}
       propertyPath: m_Name
       value: MonsterTruck
@@ -43635,6 +43651,10 @@ PrefabInstance:
       propertyPath: volumeTrigger
       value: 
       objectReference: {fileID: 186665124}
+    - target: {fileID: 9147441384312825047, guid: b9a717f48a878014eace6ca32ea4f360, type: 3}
+      propertyPath: m_VolumeTrigger
+      value: 
+      objectReference: {fileID: 186665124}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -43648,6 +43668,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 2131501052}
     m_Modifications:
+    - target: {fileID: 150173724800197637, guid: 922b25b554216dd4b962266172f6a8fc, type: 3}
+      propertyPath: m_VolumeTrigger
+      value: 
+      objectReference: {fileID: 186665124}
     - target: {fileID: 206760971178503679, guid: 922b25b554216dd4b962266172f6a8fc, type: 3}
       propertyPath: volumeTrigger
       value: 
@@ -43700,6 +43724,14 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0.05
       objectReference: {fileID: 0}
+    - target: {fileID: 4099194829729860467, guid: 922b25b554216dd4b962266172f6a8fc, type: 3}
+      propertyPath: m_VolumeTrigger
+      value: 
+      objectReference: {fileID: 186665124}
+    - target: {fileID: 4661128347341177966, guid: 922b25b554216dd4b962266172f6a8fc, type: 3}
+      propertyPath: m_VolumeTrigger
+      value: 
+      objectReference: {fileID: 186665124}
     - target: {fileID: 6261703604043562626, guid: 922b25b554216dd4b962266172f6a8fc, type: 3}
       propertyPath: volumeTrigger
       value: 
@@ -43717,6 +43749,18 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 2131501052}
     m_Modifications:
+    - target: {fileID: -8567717986675266707, guid: dae746e60ad7fa7499a41a66ec976871, type: 3}
+      propertyPath: m_VolumeTrigger
+      value: 
+      objectReference: {fileID: 186665124}
+    - target: {fileID: -8025925673355718675, guid: dae746e60ad7fa7499a41a66ec976871, type: 3}
+      propertyPath: m_VolumeTrigger
+      value: 
+      objectReference: {fileID: 186665124}
+    - target: {fileID: -3769379866892871206, guid: dae746e60ad7fa7499a41a66ec976871, type: 3}
+      propertyPath: m_VolumeTrigger
+      value: 
+      objectReference: {fileID: 186665124}
     - target: {fileID: 110089171, guid: dae746e60ad7fa7499a41a66ec976871, type: 3}
       propertyPath: volumeTrigger
       value: 
@@ -43988,6 +44032,18 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 2131501052}
     m_Modifications:
+    - target: {fileID: -9112289165462846222, guid: 0d6a0c181517e6f4d89ad9ebc70b6b95, type: 3}
+      propertyPath: m_VolumeTrigger
+      value: 
+      objectReference: {fileID: 186665124}
+    - target: {fileID: -1665381961010588317, guid: 0d6a0c181517e6f4d89ad9ebc70b6b95, type: 3}
+      propertyPath: m_VolumeTrigger
+      value: 
+      objectReference: {fileID: 186665124}
+    - target: {fileID: -158358741413017951, guid: 0d6a0c181517e6f4d89ad9ebc70b6b95, type: 3}
+      propertyPath: m_VolumeTrigger
+      value: 
+      objectReference: {fileID: 186665124}
     - target: {fileID: 5883506325606650173, guid: 0d6a0c181517e6f4d89ad9ebc70b6b95, type: 3}
       propertyPath: m_LocalPosition.x
       value: 71.48952
@@ -44166,6 +44222,14 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 2131501052}
     m_Modifications:
+    - target: {fileID: -8485412704847647286, guid: 3e1aced4144dd784c8f3878b71b33dcf, type: 3}
+      propertyPath: m_VolumeTrigger
+      value: 
+      objectReference: {fileID: 186665124}
+    - target: {fileID: -3197263647168228619, guid: 3e1aced4144dd784c8f3878b71b33dcf, type: 3}
+      propertyPath: m_VolumeTrigger
+      value: 
+      objectReference: {fileID: 186665124}
     - target: {fileID: 570990794540276038, guid: 3e1aced4144dd784c8f3878b71b33dcf, type: 3}
       propertyPath: m_LocalPosition.x
       value: 94.07008
@@ -44206,6 +44270,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 816566141045504274, guid: 3e1aced4144dd784c8f3878b71b33dcf, type: 3}
+      propertyPath: m_VolumeTrigger
+      value: 
+      objectReference: {fileID: 186665124}
     - target: {fileID: 1724182051468705192, guid: 3e1aced4144dd784c8f3878b71b33dcf, type: 3}
       propertyPath: volumeTrigger
       value: 

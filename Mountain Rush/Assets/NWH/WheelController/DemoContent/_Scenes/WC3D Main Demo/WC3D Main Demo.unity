@@ -58780,6 +58780,34 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7fd143105ad734545b778805b6cd73f6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!114 &5679481598779529627
+MonoBehaviour:
+  m_ObjectHideFlags: 8
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bc64a64f2888b1942b9b64877d834931, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: NWH.Common::NWH.Common.SceneManagement.VehicleChanger
+  activeVehicleIndex: 0
+  putOtherVehiclesToSleep: 1
+  vehicles: []
+  characterBased: 0
+  characterObject: {fileID: 0}
+  enterDistance: 2
+  enterExitTag: EnterExitPoint
+  maxEnterExitVehicleSpeed: 2
+  location: 0
+  startInVehicle: 0
+  onVehicleChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  onDeactivateAll:
+    m_PersistentCalls:
+      m_Calls: []
 --- !u!1001 &8079560688122230048
 PrefabInstance:
   m_ObjectHideFlags: 0

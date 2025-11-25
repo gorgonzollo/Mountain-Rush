@@ -70,6 +70,8 @@ public class MyCarController : MonoBehaviour
     private Action<bool> _cbRightShift, _cbLeftShift, _cbNorth;
     private Action<bool> _cbSh1, _cbSh2, _cbSh3, _cbSh4, _cbSh5, _cbSh6, _cbSh7;
 
+    private Quaternion[] _wheelRotOffset;
+
     void Awake()
     {
         rb = GetComponent<Rigidbody>();
@@ -134,11 +136,14 @@ public class MyCarController : MonoBehaviour
 
     void Start()
     {
-        if (!engineSource) return;
-        if (engineClip) engineSource.clip = engineClip;
-        engineSource.loop = true;
-        engineSource.spatialBlend = spatialBlend;
-        if (!engineSource.isPlaying) engineSource.Play();
+        if (engineSource)
+        {
+            if (engineClip) engineSource.clip = engineClip;
+            engineSource.loop = true;
+            engineSource.spatialBlend = spatialBlend;
+            if (!engineSource.isPlaying) engineSource.Play();
+        }
+        InitWheelVisualOffsets();
     }
 
     void Update()
@@ -310,6 +315,24 @@ public class MyCarController : MonoBehaviour
         if (c.relativeVelocity.magnitude > 2f) OnCollisionForce?.Invoke(c.relativeVelocity.magnitude);
     }
 
+    void InitWheelVisualOffsets()
+    {
+        int n = Mathf.Min(wheels.Length, wheelVisuals.Length);
+        _wheelRotOffset = new Quaternion[n];
+        for (int i = 0; i < n; i++)
+        {
+            if (wheels[i] && wheelVisuals[i])
+            {
+                wheels[i].GetWorldPose(out Vector3 p, out Quaternion r);
+                _wheelRotOffset[i] = Quaternion.Inverse(r) * wheelVisuals[i].rotation;
+            }
+            else
+            {
+                _wheelRotOffset[i] = Quaternion.identity;
+            }
+        }
+    }
+
     void UpdateVisuals()
     {
         if (gearText)
@@ -321,13 +344,14 @@ public class MyCarController : MonoBehaviour
 
         if (steeringWheel) steeringWheel.localRotation = Quaternion.Euler(0, 0, -_finalSteer * 450f);
 
-        for (int i = 0; i < wheels.Length; i++)
+        int n = Mathf.Min(wheels.Length, wheelVisuals.Length);
+        for (int i = 0; i < n; i++)
         {
-            if (i < wheelVisuals.Length && wheelVisuals[i])
+            if (wheels[i] && wheelVisuals[i])
             {
                 wheels[i].GetWorldPose(out Vector3 p, out Quaternion r);
-                wheelVisuals[i].position = p;
-                wheelVisuals[i].rotation = r;
+                if (_wheelRotOffset != null && i < _wheelRotOffset.Length) r *= _wheelRotOffset[i];
+                wheelVisuals[i].SetPositionAndRotation(p, r);
             }
         }
     }
